@@ -1,0 +1,29 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "3.0",
+	"FriendlyName": "Generic Standalone",
+	"Description": "Standalone, type-safe generic variable system extracted from MaidGameFramework — a complete data container with full blueprint support.",
+	"Category": "Game",
+	"CreatedBy": "bot hopps",
+	"CreatedByURL": "https://space.bilibili.com/46337471",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "MaidGame",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "MaidEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}
