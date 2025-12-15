@@ -80,11 +80,11 @@ private:
 	/**
 	 * Uncomment the following code if UE_VERSION_NEWER_THAN(5, 0, 0) 
 	 */
-	UPROPERTY() FVector2f Vector2f;
-	UPROPERTY() FVector3f Vector3f;
-	UPROPERTY() FVector4f Vector4f;
-	UPROPERTY() FMatrix44f Matrix44f;
-	template<> struct FUncommentCheck<FGenericPropJunkPrivate> { static uint16 Func(); };
+	//UPROPERTY() FVector2f Vector2f;
+	//UPROPERTY() FVector3f Vector3f;
+	//UPROPERTY() FVector4f Vector4f;
+	//UPROPERTY() FMatrix44f Matrix44f;
+	//template<> struct FUncommentCheck<FGenericPropJunkPrivate> { static uint16 Func(); };
 #if UE_VERSION_NEWER_THAN(5, 0, 0)
 	static_assert(sizeof(FUncommentCheck<FGenericPropJunkPrivate>::Func()) - 1,
 		"Uncomment the types above for UE5.0+ support");
@@ -312,6 +312,9 @@ public:
 	FORCEINLINE bool IsValidPinType() const { return EditPinType != FEdGraphPinType(); };
 	FORCEINLINE const FEdGraphPinType& GetEditPinType() const { return EditPinType; }
 	FORCEINLINE void SetEditPinType(const FEdGraphPinType& NewType) { EditPinType = NewType; }
+	FORCEINLINE void SetEditPinType(const FProperty* Property) { GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(Property, EditPinType); }
+#else
+	template <typename... Args> FORCEINLINE void SetEditPinType(Args&&...) {}
 #endif
 
 public:
@@ -345,7 +348,7 @@ public:
 	// C++ constructors and conversion operators
 
 	/** Construct from UObject pointer (converts to soft object pointer internally) */
-	explicit FGeneric(const UObject* Other)
+	FGeneric(const UObject* Other)
 	{
 		TSoftObjectPtr<UObject> SoftPtr(const_cast<UObject*>(Other));
 		Set(&SoftPtr, GET_GENERIC_PROP_PRIVATE(TSoftObjectPtr<UObject>));
@@ -381,25 +384,36 @@ public:
 	}
 
 #pragma push_macro("GENERIC_PROPERTY")
-#pragma push_macro("GENERIC_PROPERTY_OBJECT_SPEC")
-#pragma push_macro("GENERIC_PROPERTY_CLASS_SPEC")
+#pragma push_macro("GENERIC_PROPERTY_OBJECT")
+#pragma push_macro("GENERIC_PROPERTY_CLASS")
 #define GENERIC_PROPERTY(CppType, Name) \
 	FGeneric(const CppType& Other) \
 	{ \
-		Set(&Other, GET_GENERIC_PROP_PRIVATE(CppType)); \
+		(*this) = Other; \
 	} \
 	FGeneric& operator=(const CppType& Other) \
 	{ \
-		Set(&Other, GET_GENERIC_PROP_PRIVATE(CppType)); \
+		/* Fast path for integral types */ \
+		if constexpr (TIsIntegral<CppType>::Value) \
+		{ \
+			Clear(); \
+			PlainData.SetNumUninitialized(sizeof(Other)); \
+			FMemory::Memcpy(PlainData.GetData(), &Other, PlainData.Num()); \
+			SetEditPinType(GET_GENERIC_PROP_PRIVATE(CppType)); \
+		} \
+		else \
+		{ \
+			Set(&Other, GET_GENERIC_PROP_PRIVATE(CppType)); \
+		} \
 		return *this; \
 	}
 	// END DEFINE GENERIC_PROPERTY
-#define GENERIC_PROPERTY_OBJECT_SPEC(CppType, Name)
-#define GENERIC_PROPERTY_CLASS_SPEC(CppType, Name)
+#define GENERIC_PROPERTY_OBJECT(CppType, Name)
+#define GENERIC_PROPERTY_CLASS(CppType, Name)
 #include "GenericProperties.inl"
 #pragma pop_macro("GENERIC_PROPERTY")
-#pragma pop_macro("GENERIC_PROPERTY_OBJECT_SPEC")
-#pragma pop_macro("GENERIC_PROPERTY_CLASS_SPEC")
+#pragma pop_macro("GENERIC_PROPERTY_OBJECT")
+#pragma pop_macro("GENERIC_PROPERTY_CLASS")
 
 	 // C++ conversion methods
 
@@ -419,6 +433,34 @@ public:
 	FORCEINLINE operator bool() const
 	{ 
 		return As<bool>();
+	}
+
+	/** Specialization for float conversion */
+	template<> FORCEINLINE float As<float>() const
+	{
+		if (PlainData.Num() == sizeof(float)) return (float)*reinterpret_cast<const float*>(PlainData.GetData());
+		else if (PlainData.Num() == sizeof(double)) return (float)*reinterpret_cast<const double*>(PlainData.GetData());
+		else return 0.f;
+	}
+
+	/** Implicit conversion to float */
+	FORCEINLINE operator float() const
+	{
+		return As<float>();
+	}
+
+	/** Specialization for double conversion */
+	template<> FORCEINLINE double As<double>() const
+	{
+		if (PlainData.Num() == sizeof(float)) return (double)*reinterpret_cast<const float*>(PlainData.GetData());
+		else if (PlainData.Num() == sizeof(double)) return (double)*reinterpret_cast<const double*>(PlainData.GetData());
+		else return 0.0;
+	}
+
+	/** Implicit conversion to double */
+	FORCEINLINE operator double() const
+	{
+		return As<double>();
 	}
 
 	/** Specialization for UObject* conversion */
@@ -449,10 +491,18 @@ public:
 		return As<TSubclassOf<UObject>>();
 	}
 
+	/** Cast to pointer of UObject derived class */
+	template<class TClass>
+	FORCEINLINE typename TEnableIf<std::is_convertible_v<TClass*, UObject*>, TClass>::Type* CastTo() const
+	{
+		return Cast<TClass>(As<UObject*>());
+	}
+
 #pragma push_macro("GENERIC_PROPERTY")
-#pragma push_macro("GENERIC_PROPERTY_BOOL_SPEC")
-#pragma push_macro("GENERIC_PROPERTY_OBJECT_SPEC")
-#pragma push_macro("GENERIC_PROPERTY_CLASS_SPEC")
+#pragma push_macro("GENERIC_PROPERTY_BOOL")
+#pragma push_macro("GENERIC_PROPERTY_FLOAT")
+#pragma push_macro("GENERIC_PROPERTY_OBJECT")
+#pragma push_macro("GENERIC_PROPERTY_CLASS")
 #define GENERIC_PROPERTY(CppType, Name) \
 	template<> FORCEINLINE CppType As<CppType>() const \
 	{ \
@@ -465,14 +515,16 @@ public:
 		return As<CppType>(); \
 	} 
 	// END DEFINE GENERIC_PROPERTY
-#define GENERIC_PROPERTY_BOOL_SPEC(CppType, Name)
-#define GENERIC_PROPERTY_OBJECT_SPEC(CppType, Name)
-#define GENERIC_PROPERTY_CLASS_SPEC(CppType, Name)
+#define GENERIC_PROPERTY_BOOL(CppType, Name)
+#define GENERIC_PROPERTY_FLOAT(CppType, Name)
+#define GENERIC_PROPERTY_OBJECT(CppType, Name)
+#define GENERIC_PROPERTY_CLASS(CppType, Name)
 #include "GenericProperties.inl"
 #pragma pop_macro("GENERIC_PROPERTY")
-#pragma pop_macro("GENERIC_PROPERTY_BOOL_SPEC")
-#pragma pop_macro("GENERIC_PROPERTY_OBJECT_SPEC")
-#pragma pop_macro("GENERIC_PROPERTY_CLASS_SPEC")
+#pragma pop_macro("GENERIC_PROPERTY_BOOL")
+#pragma pop_macro("GENERIC_PROPERTY_FLOAT")
+#pragma pop_macro("GENERIC_PROPERTY_OBJECT")
+#pragma pop_macro("GENERIC_PROPERTY_CLASS")
 
 	 // UScriptStruct constructors and converters
 

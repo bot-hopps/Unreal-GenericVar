@@ -16,9 +16,6 @@ void FGeneric::Set(const void* SrcPropertyAddress, const FProperty* SrcProperty)
 	{
 		SetPlainSize(SrcProperty->GetSize());
 		SrcProperty->CopyCompleteValue(PlainData.GetData(), SrcPropertyAddress);
-#if WITH_EDITOR
-		ClearReferencedObjects();
-#endif
 #if WITH_EDITORONLY_DATA && WITH_EDITOR
 		const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 		K2Schema->ConvertPropertyToPinType(SrcProperty, EditPinType);
