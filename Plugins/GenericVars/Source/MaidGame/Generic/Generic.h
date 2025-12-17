@@ -142,27 +142,31 @@ namespace GenericTraits
 	template<typename T> 
 	constexpr bool TIsEnumAsByte<TEnumAsByte<T>> = true;
 	
-	template<typename T, typename = void> 
-	struct TUnderlyingEnum { using Type = uint8; };
-	
-	template<typename T> 
-	struct TUnderlyingEnum<T, std::void_t<typename TEnableIf<TIsEnumAsByte<T>>::Type>> 
-	{ using Type = typename T::EnumType; };
-	
-	template<typename T> 
-	struct TUnderlyingEnum<T, std::void_t<typename TEnableIf<std::is_enum_v<T>>::Type>> 
-	{ using Type = T; };
-	
-	template<typename T, typename = void> 
-	struct TUnderlyingType { using Type = void; };
-	
-	template<typename T> 
-	struct TUnderlyingType<T, std::void_t<typename TEnableIf<TIsEnumAsByte<T>>::Type>> 
-	{ using Type = __underlying_type(typename TUnderlyingEnum<T>::Type); };
-	
-	template<typename T> 
-	struct TUnderlyingType<T, std::void_t<typename TEnableIf<std::is_enum_v<T>>::Type>> 
-	{ using Type = __underlying_type(typename T); };
+	template<typename T, typename = void> struct TUnderlyingEnum { using Type = void; };
+
+	template<typename T, int> struct TUnderlyingEnumImpl { using Type = void; };
+	template<typename T> struct TUnderlyingEnumImpl<T, 0> { using Type = typename T::EnumType; };
+	template<typename T> struct TUnderlyingEnumImpl<T, 1> { using Type = T; };
+
+	template<typename T> struct TUnderlyingEnum<T, std::void_t<decltype(sizeof(T))>>
+	{
+		using Type = typename TUnderlyingEnumImpl<T,
+			TIsEnumAsByte<T> ? 0 : (std::is_enum_v<T> ? 1 : 2)
+		>::Type;
+	};
+
+	template<typename T, typename = void> struct TUnderlyingType { using Type = void; };
+
+	template<typename T, int> struct TUnderlyingTypeImpl { using Type = void; };
+	template<typename T> struct TUnderlyingTypeImpl<T, 0> { using Type = __underlying_type(typename TUnderlyingEnum<T>::Type); };
+	template<typename T> struct TUnderlyingTypeImpl<T, 1> { using Type = __underlying_type(T); };
+
+	template<typename T> struct TUnderlyingType<T, std::void_t<decltype(sizeof(T))>>
+	{
+		using Type = typename TUnderlyingTypeImpl<T,
+			TIsEnumAsByte<T> ? 0 : (std::is_enum_v<T> ? 1 : 2)
+		>::Type;
+	};
 
 	template<typename T> 
 	auto TestStaticEnum(int) -> decltype(StaticEnum<T>(), std::true_type{});
@@ -466,14 +470,14 @@ public:
 	}
 
 	/** Construct from any UScriptStruct-based type */
-	template<class CppType, typename TEnableIf<GenericTraits::TIsUStruct<CppType>>::Type* = nullptr>
+	template<class CppType, typename std::enable_if_t<GenericTraits::TIsUStruct<CppType>>* = nullptr>
 	explicit FGeneric(const CppType& Other)
 	{
 		(*this) = Other;
 	}
 
 	/** Assign from any UScriptStruct-based type */
-	template<class CppType, typename TEnableIf<GenericTraits::TIsUStruct<CppType>>::Type* = nullptr>
+	template<class CppType, typename std::enable_if_t<GenericTraits::TIsUStruct<CppType>>* = nullptr>
 	FORCEINLINE FGeneric& operator=(const CppType& Other)
 	{
 		Clear();
@@ -490,14 +494,14 @@ public:
 	}
 
 	/** Construct from UEnum type */
-	template<class CppType, typename TEnableIf<GenericTraits::TIsUEnum<CppType>::value>::Type* = nullptr>
+	template<class CppType, typename std::enable_if_t<GenericTraits::TIsUEnum<CppType>::value>* = nullptr>
 	explicit FGeneric(const CppType& Other)
 	{
 		(*this) = Other;
 	}
 
 	/** Assign from UEnum type */
-	template<class CppType, typename TEnableIf<GenericTraits::TIsUEnum<CppType>::value>::Type* = nullptr>
+	template<class CppType, typename std::enable_if_t<GenericTraits::TIsUEnum<CppType>::value>* = nullptr>
 	FORCEINLINE FGeneric& operator=(const CppType& Other)
 	{
 		(*this) = (__underlying_type(CppType))Other;
@@ -505,14 +509,14 @@ public:
 	}
 
 	/** Construct from TEnumAsByte of UEnum type */
-	template<class CppType, typename TEnableIf<GenericTraits::TIsUEnum<CppType>::value>::Type* = nullptr>
+	template<class CppType, typename std::enable_if_t<GenericTraits::TIsUEnum<CppType>::value>* = nullptr>
 	explicit FGeneric(const TEnumAsByte<CppType>& Other)
 	{
 		(*this) = Other;
 	}
 
 	/** Assign from TEnumAsByte of UEnum type */
-	template<class CppType, typename TEnableIf<GenericTraits::TIsUEnum<CppType>::value>::Type* = nullptr>
+	template<class CppType, typename std::enable_if_t<GenericTraits::TIsUEnum<CppType>::value>* = nullptr>
 	FORCEINLINE FGeneric& operator=(const TEnumAsByte<CppType>& Other)
 	{
 		(*this) = (__underlying_type(CppType))Other;
@@ -591,10 +595,10 @@ public:
 		}
 		else if constexpr (TIsIntegral<CppTypeNoCV>::Value || GenericTraits::TIsUEnum<CppTypeNoCV>::value)
 		{
-			using TDestType = typename TChooseClass<
+			using TDestType = typename std::conditional_t<
 				GenericTraits::TIsUEnum<CppTypeNoCV>::value,
 				typename GenericTraits::TUnderlyingType<CppTypeNoCV>::Type,
-				CppTypeNoCV>::Result;
+				CppTypeNoCV>;
 			if (GetPlainSize() < sizeof(CppTypeNoCV))
 				if (Data.IsEmpty())
 					return static_cast<CppTypeNoCV>(TDestType(0));
