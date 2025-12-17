@@ -41,7 +41,7 @@ struct FGenericPropJunkPrivate
 
 private:
 	friend struct FGeneric;
-	
+
 	// Primary data types
 	UPROPERTY() bool Bool;
 	UPROPERTY() float Float;
@@ -75,19 +75,25 @@ private:
 	UPROPERTY() FColor Color;
 	UPROPERTY() FPlane Plane;
 	UPROPERTY() FGuid Guid;
+	UPROPERTY() FBox Box;
+	UPROPERTY() FBox2D Box2D;
+	UPROPERTY() FDateTime DateTime;
+	UPROPERTY() FTimespan Timespan;
 
 	template<typename T> struct FUncommentCheck { static uint8 Func(); };
 	/**
-	 * Uncomment the following code if UE_VERSION_NEWER_THAN(5, 0, 0) 
+	 * Uncomment the following code if UE_VERSION_NEWER_THAN(5, 0, 0)
 	 */
 	//UPROPERTY() FVector2f Vector2f;
 	//UPROPERTY() FVector3f Vector3f;
 	//UPROPERTY() FVector4f Vector4f;
 	//UPROPERTY() FMatrix44f Matrix44f;
+	//UPROPERTY() FBox3f Box3f;
+	//UPROPERTY() FBox2f Box2f;
 	//template<> struct FUncommentCheck<FGenericPropJunkPrivate> { static uint16 Func(); };
 #if UE_VERSION_NEWER_THAN(5, 0, 0)
 	static_assert(sizeof(FUncommentCheck<FGenericPropJunkPrivate>::Func()) - 1,
-		"Uncomment the types above for UE5.0+ support");
+		"Uncomment the above lines for UE5.0+ compatibility");
 #endif
 
 	// Array types
@@ -96,6 +102,7 @@ private:
 	UPROPERTY() TArray<FString> StringArray;
 	UPROPERTY() TArray<FName> NameArray;
 	UPROPERTY() TArray<UObject*> ObjectArray;
+	UPROPERTY() TArray<FVector> VectorArray;
 
 public:
 #if CPP
@@ -114,6 +121,73 @@ public:
 
 #pragma push_macro("GET_GENERIC_PROP_PRIVATE")
 #define GET_GENERIC_PROP_PRIVATE(CppType) FGenericPropJunkPrivate::Get(CppType())
+
+namespace GenericTraits
+{
+	template<typename T> constexpr bool TIsSubclassOf = false;
+	template<typename T> constexpr bool TIsSubclassOf<TSubclassOf<T>> = true;
+
+	template<typename T, typename = void> 
+	struct HasStaticStruct : std::false_type {};
+	
+	template<typename T> 
+	struct HasStaticStruct<T, std::void_t<decltype(&T::StaticStruct)>> : std::true_type {};
+	
+	template<typename T> 
+	constexpr bool TIsUStruct = HasStaticStruct<T>::value;
+
+	template<typename T> 
+	constexpr bool TIsEnumAsByte = false;
+	
+	template<typename T> 
+	constexpr bool TIsEnumAsByte<TEnumAsByte<T>> = true;
+	
+	template<typename T, typename = void> 
+	struct TUnderlyingEnum { using Type = uint8; };
+	
+	template<typename T> 
+	struct TUnderlyingEnum<T, std::void_t<typename TEnableIf<TIsEnumAsByte<T>>::Type>> 
+	{ using Type = typename T::EnumType; };
+	
+	template<typename T> 
+	struct TUnderlyingEnum<T, std::void_t<typename TEnableIf<std::is_enum_v<T>>::Type>> 
+	{ using Type = T; };
+	
+	template<typename T, typename = void> 
+	struct TUnderlyingType { using Type = void; };
+	
+	template<typename T> 
+	struct TUnderlyingType<T, std::void_t<typename TEnableIf<TIsEnumAsByte<T>>::Type>> 
+	{ using Type = __underlying_type(typename TUnderlyingEnum<T>::Type); };
+	
+	template<typename T> 
+	struct TUnderlyingType<T, std::void_t<typename TEnableIf<std::is_enum_v<T>>::Type>> 
+	{ using Type = __underlying_type(typename T); };
+
+	template<typename T> 
+	auto TestStaticEnum(int) -> decltype(StaticEnum<T>(), std::true_type{});
+	
+	template<typename T> 
+	auto TestStaticEnum(...) -> std::false_type;
+	
+	template<typename T, typename = void> 
+	struct HasStaticEnum : std::false_type {};
+	
+	template<typename T> 
+	struct HasStaticEnum<T, std::enable_if_t<std::is_same_v<decltype(TestStaticEnum<T>(0)), std::true_type>> > 
+		: decltype(TestStaticEnum<T>(0)) {};
+	
+	template<typename T, typename = void> 
+	struct TIsUEnum : std::false_type {};
+	
+	template<typename T> 
+	struct TIsUEnum<T, std::enable_if_t<std::is_enum_v<T> && HasStaticEnum<T>::value>> 
+		: std::true_type {};
+	
+	template<typename T> 
+	struct TIsUEnum<T, std::enable_if_t<TIsEnumAsByte<T> && std::is_enum_v<typename TUnderlyingEnum<T>::Type> && HasStaticEnum<typename TUnderlyingEnum<T>::Type>::value>> 
+		: std::true_type {};
+}
 
 /**
  * Universal container type supporting both Blueprint and C++ systems
@@ -141,7 +215,7 @@ USTRUCT(BlueprintType, Category = "Generic")
 struct MAIDGAME_API FGeneric
 {
 	GENERATED_BODY()
-	
+
 private:
 	/** Serialized data for complex types (non-plain types) */
 	UPROPERTY(VisibleAnywhere)
@@ -159,7 +233,7 @@ private:
 	TArray<TSoftObjectPtr<UObject>> ReferencedObjects;
 
 #if WITH_EDITORONLY_DATA
-	/** Pin type information for editor visualization and Blueprint node creation */
+	/** Pin type information for editor visualization */
 	UPROPERTY(VisibleAnywhere)
 	FEdGraphPinType EditPinType;
 #endif
@@ -193,11 +267,17 @@ private:
 			CacheData.SetNumZeroed(NewSize);
 		}
 		FORCEINLINE int32 GetSize() const
-		{ 
-			return CacheData.Num() * CacheData.GetTypeSize(); 
+		{
+			return CacheData.Num() * CacheData.GetTypeSize();
 		}
-		FORCEINLINE FDataCacheStorageType* GetData() { return CacheData.GetData(); }
-		FORCEINLINE const FDataCacheStorageType* GetData() const { return CacheData.GetData(); }
+		FORCEINLINE FDataCacheStorageType* GetData() 
+		{ 
+			return CacheData.GetData();
+		}
+		FORCEINLINE const FDataCacheStorageType* GetData() const
+		{ 
+			return CacheData.GetData();
+		}
 		FORCEINLINE void Clear()
 		{
 			if (Prop && Prop->GetSize() <= GetSize())
@@ -213,7 +293,10 @@ private:
 			if (SrcProperty)
 			{
 				SetSize(SrcProperty->GetSize());
-				if (SrcPropertyAddress) SrcProperty->CopyCompleteValue(GetData(), SrcPropertyAddress);
+				if (SrcPropertyAddress)
+				{
+					SrcProperty->CopyCompleteValue(GetData(), SrcPropertyAddress);
+				}
 				else SrcProperty->InitializeValue(GetData());
 			}
 		}
@@ -253,8 +336,8 @@ public:
 #endif
 #define GENERIC_CTOR(DECORATE, ...) { if(this != &Other) { GENERIC_COPY_DATA(DECORATE); GENERIC_COPY_DATA_ED(DECORATE); GENERIC_COPY_DATA_CACHE(DECORATE); } __VA_ARGS__; }
 	FGeneric() = default;
-	FGeneric(const FGeneric& Other) GENERIC_CTOR(*&,);
-	FGeneric(FGeneric&& Other) GENERIC_CTOR(MoveTempIfPossible,);
+	FGeneric(const FGeneric& Other) GENERIC_CTOR(*&, );
+	FGeneric(FGeneric&& Other) GENERIC_CTOR(MoveTempIfPossible, );
 	FGeneric& operator=(const FGeneric& Other) GENERIC_CTOR(*&, return *this;);
 	FGeneric& operator=(FGeneric&& Other) GENERIC_CTOR(MoveTempIfPossible, return *this;);
 	FGeneric(EForceInit) {}
@@ -302,7 +385,9 @@ public:
 
 	/** Equality comparison operator */
 	FORCEINLINE bool operator== (const FGeneric& Other) const
-		{ return Data.Equals(Other.Data, ESearchCase::CaseSensitive) && PlainData == Other.PlainData; }
+	{
+		return Data.Equals(Other.Data, ESearchCase::CaseSensitive) && PlainData == Other.PlainData;
+	}
 
 	/** Inequality comparison operator */
 	FORCEINLINE bool operator!= (const FGeneric& Other) const { return !(*this == Other); }
@@ -330,12 +415,7 @@ public:
 
 private:
 	/** Resize the plain data storage to the specified size */
-	FORCEINLINE void SetPlainSize(int32 NewSize) 
-	{
-		NewSize = FMath::Max((NewSize / PlainData.GetTypeSize()), 1u);
-		NewSize = FMath::Max(NewSize, PlainData.Num());
-		PlainData.SetNumZeroed(NewSize);
-	}
+	FORCEINLINE void SetPlainSize(int32 NewSize) { PlainData.SetNumZeroed(FMath::Max((NewSize / PlainData.GetTypeSize()), 1u)); }
 
 #if WITH_EDITOR
 	void CacheReferencedObjects(const FProperty* InProperty, const void* InData);
@@ -345,8 +425,6 @@ private:
 
 #if CPP
 public:
-	// C++ constructors and conversion operators
-
 	/** Construct from UObject pointer (converts to soft object pointer internally) */
 	FGeneric(const UObject* Other)
 	{
@@ -363,24 +441,82 @@ public:
 	}
 
 	/** Construct from TSubclassOf (converts to soft class pointer internally) */
-	explicit FGeneric(const TSubclassOf<UObject>& Other)
+	template<class TClass, typename std::enable_if_t<std::is_base_of_v<TClass, TClass>>* = nullptr>
+	explicit FGeneric(const TSubclassOf<TClass>& Other)
 	{
-		TSoftClassPtr<UObject> SoftPtr(Other);
-		Set(&SoftPtr, GET_GENERIC_PROP_PRIVATE(TSoftClassPtr<UObject>));
+		(*this) = Other;
 	}
 
 	/** Assign from TSubclassOf (converts to soft class pointer internally) */
-	FGeneric& operator=(const TSubclassOf<UObject>& Other)
+	template<class TClass, typename std::enable_if_t<std::is_base_of_v<TClass, TClass>>* = nullptr>
+	FGeneric& operator=(const TSubclassOf<TClass>& Other)
 	{
 		TSoftClassPtr<UObject> SoftPtr(Other);
 		Set(&SoftPtr, GET_GENERIC_PROP_PRIVATE(TSoftClassPtr<UObject>));
 		return *this;
 	}
 
+	/** Construct from string literal */
 	explicit FGeneric(const TCHAR* Other) : FGeneric(FString(Other)) {}
+
+	/** Assign from string literal */
 	FGeneric& operator=(const TCHAR* Other)
 	{
 		return operator=(FString(Other));
+	}
+
+	/** Construct from any UScriptStruct-based type */
+	template<class CppType, typename TEnableIf<GenericTraits::TIsUStruct<CppType>>::Type* = nullptr>
+	explicit FGeneric(const CppType& Other)
+	{
+		(*this) = Other;
+	}
+
+	/** Assign from any UScriptStruct-based type */
+	template<class CppType, typename TEnableIf<GenericTraits::TIsUStruct<CppType>>::Type* = nullptr>
+	FORCEINLINE FGeneric& operator=(const CppType& Other)
+	{
+		Clear();
+		UScriptStruct* Struct = CppType::StaticStruct();
+		Struct->ExportText(Data, &Other, nullptr, nullptr, 0, nullptr);
+#if WITH_EDITOR
+		CacheReferencedObjects(Struct, &Other);
+#endif
+#if WITH_EDITORONLY_DATA
+		EditPinType.PinCategory = "struct";
+		EditPinType.PinSubCategoryObject = Struct;
+#endif
+		return *this;
+	}
+
+	/** Construct from UEnum type */
+	template<class CppType, typename TEnableIf<GenericTraits::TIsUEnum<CppType>::value>::Type* = nullptr>
+	explicit FGeneric(const CppType& Other)
+	{
+		(*this) = Other;
+	}
+
+	/** Assign from UEnum type */
+	template<class CppType, typename TEnableIf<GenericTraits::TIsUEnum<CppType>::value>::Type* = nullptr>
+	FORCEINLINE FGeneric& operator=(const CppType& Other)
+	{
+		(*this) = (__underlying_type(CppType))Other;
+		return *this;
+	}
+
+	/** Construct from TEnumAsByte of UEnum type */
+	template<class CppType, typename TEnableIf<GenericTraits::TIsUEnum<CppType>::value>::Type* = nullptr>
+	explicit FGeneric(const TEnumAsByte<CppType>& Other)
+	{
+		(*this) = Other;
+	}
+
+	/** Assign from TEnumAsByte of UEnum type */
+	template<class CppType, typename TEnableIf<GenericTraits::TIsUEnum<CppType>::value>::Type* = nullptr>
+	FORCEINLINE FGeneric& operator=(const TEnumAsByte<CppType>& Other)
+	{
+		(*this) = (__underlying_type(CppType))Other;
+		return *this;
 	}
 
 #pragma push_macro("GENERIC_PROPERTY")
@@ -394,11 +530,11 @@ public:
 	FGeneric& operator=(const CppType& Other) \
 	{ \
 		/* Fast path for integral types */ \
-		if constexpr (TIsIntegral<CppType>::Value) \
+		if constexpr (TIsIntegral<CppType>::Value || TIsFloatingPoint<CppType>::Value) \
 		{ \
 			Clear(); \
 			PlainData.SetNumUninitialized(sizeof(Other)); \
-			FMemory::Memcpy(PlainData.GetData(), &Other, PlainData.Num()); \
+			FMemory::Memcpy(GetPlainData(), &Other, GetPlainSize()); \
 			SetEditPinType(GET_GENERIC_PROP_PRIVATE(CppType)); \
 		} \
 		else \
@@ -415,159 +551,123 @@ public:
 #pragma pop_macro("GENERIC_PROPERTY_OBJECT")
 #pragma pop_macro("GENERIC_PROPERTY_CLASS")
 
-	 // C++ conversion methods
-
-	/** Convert to specified type (template specialization required) */
-	template<typename Type> Type As() const = delete;
-
-	/** Specialization for bool conversion */
-	template<> FORCEINLINE bool As<bool>() const
-	{ 
-		if (PlainData.Num() == 1) return  (bool)PlainData[0];
-		else if (PlainData.Num() == 0) return !Data.IsEmpty();
-		else { for (const auto Elem : PlainData) if (Elem) return true; } 
-		return false;
-	} 
-
-	/** Implicit conversion to bool */
-	FORCEINLINE operator bool() const
-	{ 
-		return As<bool>();
-	}
-
-	/** Specialization for float conversion */
-	template<> FORCEINLINE float As<float>() const
+	/**
+	 * Convert the stored value to the specified type
+	 * @tparam CppType - Target type for conversion
+	 * @return Converted value of type CppType
+	 */
+	template<typename CppType> const CppType As() const
 	{
-		if (PlainData.Num() == sizeof(float)) return (float)*reinterpret_cast<const float*>(PlainData.GetData());
-		else if (PlainData.Num() == sizeof(double)) return (float)*reinterpret_cast<const double*>(PlainData.GetData());
-		else return 0.f;
-	}
+		using CppTypeNoCV = typename std::remove_cv<CppType>::type;
+		static_assert(!std::is_same_v<CppTypeNoCV, void>, "Template parameter cannot be void.");
 
-	/** Implicit conversion to float */
-	FORCEINLINE operator float() const
-	{
-		return As<float>();
-	}
-
-	/** Specialization for double conversion */
-	template<> FORCEINLINE double As<double>() const
-	{
-		if (PlainData.Num() == sizeof(float)) return (double)*reinterpret_cast<const float*>(PlainData.GetData());
-		else if (PlainData.Num() == sizeof(double)) return (double)*reinterpret_cast<const double*>(PlainData.GetData());
-		else return 0.0;
-	}
-
-	/** Implicit conversion to double */
-	FORCEINLINE operator double() const
-	{
-		return As<double>();
-	}
-
-	/** Specialization for UObject* conversion */
-	template<> FORCEINLINE UObject* As<UObject*>() const
-	{
-		FSoftObjectPtr Ans;
-		Get(&Ans, GET_GENERIC_PROP_PRIVATE(TSoftObjectPtr<UObject>));
-		return Ans.LoadSynchronous();
-	}
-
-	/** Implicit conversion to UObject* */
-	FORCEINLINE operator UObject* () const
-	{
-		return As<UObject*>();
-	}
-
-	/** Specialization for TSubclassOf conversion */
-	template<> FORCEINLINE TSubclassOf<UObject> As<TSubclassOf<UObject>>() const
-	{
-		FSoftObjectPtr Ans;
-		Get(&Ans, GET_GENERIC_PROP_PRIVATE(TSoftObjectPtr<UObject>));
-		return TSubclassOf<UObject>(Cast<UClass>(Ans.LoadSynchronous()));
-	}
-
-	/** Implicit conversion to TSubclassOf */
-	FORCEINLINE operator TSubclassOf<UObject>() const
-	{
-		return As<TSubclassOf<UObject>>();
-	}
-
-	/** Cast to pointer of UObject derived class */
-	template<class TClass>
-	FORCEINLINE typename TEnableIf<std::is_convertible_v<TClass*, UObject*>, TClass>::Type* CastTo() const
-	{
-		return Cast<TClass>(As<UObject*>());
-	}
-
+		if constexpr (false) {}
+		else if constexpr (std::is_same_v<CppTypeNoCV, bool>)
+		{
+			if (GetPlainSize() == 1)
+				return (bool)PlainData[0];
+			else if (GetPlainSize() == 0)
+				return !Data.IsEmpty();
+			else {
+				for (const auto Elem : PlainData)
+					if (Elem) return true;
+			}
+			return false;
+		}
+		else if constexpr (TIsFloatingPoint<CppTypeNoCV>::Value)
+		{
+			if (GetPlainSize() == sizeof(float))
+				return static_cast<CppTypeNoCV>(*reinterpret_cast<const float*>(GetPlainData()));
+			else if (GetPlainSize() == sizeof(double))
+				return static_cast<CppTypeNoCV>(*reinterpret_cast<const double*>(GetPlainData()));
+			else if (GetPlainSize() == sizeof(long double))
+				return static_cast<CppTypeNoCV>(*reinterpret_cast<const long double*>(GetPlainData()));
+			else if (!Data.IsEmpty())
+				if constexpr (std::is_same_v<CppTypeNoCV, float>)
+					return FCString::Atof(*Data);
+				else
+					return FCString::Atod(*Data);
+			return static_cast<CppTypeNoCV>(0);
+		}
+		else if constexpr (TIsIntegral<CppTypeNoCV>::Value || GenericTraits::TIsUEnum<CppTypeNoCV>::value)
+		{
+			using TDestType = typename TChooseClass<
+				GenericTraits::TIsUEnum<CppTypeNoCV>::value,
+				typename GenericTraits::TUnderlyingType<CppTypeNoCV>::Type,
+				CppTypeNoCV>::Result;
+			if (GetPlainSize() < sizeof(CppTypeNoCV))
+				if (Data.IsEmpty())
+					return static_cast<CppTypeNoCV>(TDestType(0));
+				else
+					return static_cast<CppTypeNoCV>(TDestType(FCString::Atoi64(*Data)));
+			else if (GetPlainSize() == sizeof(int8))
+				return static_cast<CppTypeNoCV>(TDestType(*reinterpret_cast<const int8*>(GetPlainData())));
+			else if (GetPlainSize() == sizeof(int16))
+				return static_cast<CppTypeNoCV>(TDestType(*reinterpret_cast<const int16*>(GetPlainData())));
+			else if (GetPlainSize() == sizeof(int32))
+				return static_cast<CppTypeNoCV>(TDestType(*reinterpret_cast<const int32*>(GetPlainData())));
+			else if (GetPlainSize() == sizeof(int64))
+				return static_cast<CppTypeNoCV>(TDestType(*reinterpret_cast<const int64*>(GetPlainData())));
+			return static_cast<CppTypeNoCV>(TDestType(*reinterpret_cast<const TDestType*>(GetPlainData())));
+		}
+		else if constexpr (std::is_enum_v<CppTypeNoCV>)
+		{
+			static_assert(!std::is_same_v<CppTypeNoCV, CppTypeNoCV>,
+				"Only UENUM types with blueprint reflection are supported by FGeneric");
+			return CppTypeNoCV();
+		}
+		else if constexpr (std::is_pointer_v<CppTypeNoCV> && std::is_convertible_v<CppTypeNoCV, UObject*>)
+		{
+			return Cast<std::remove_pointer_t<CppTypeNoCV>>(As<TSoftObjectPtr<>>().LoadSynchronous());
+		}
+		else if constexpr (std::is_pointer_v<CppTypeNoCV>)
+		{
+			static_assert(!std::is_same_v<CppTypeNoCV, CppTypeNoCV>,
+				"Only UObject pointer types with blueprint reflection are supported by FGeneric");
+			return nullptr;
+		}
+		else if constexpr (GenericTraits::TIsSubclassOf<CppTypeNoCV>)
+		{
+			return Cast<UClass>(As<TSoftObjectPtr<>>().LoadSynchronous());
+		}
+		else if constexpr (std::is_same_v<CppTypeNoCV, FSoftObjectPath> || std::is_same_v<CppTypeNoCV, FSoftClassPath>)
+		{
+			return As<TSoftObjectPtr<>>();
+		}
+		else if constexpr (GenericTraits::TIsUStruct<CppTypeNoCV>)
+		{
+			CppTypeNoCV Ans;
+			UScriptStruct* Struct = CppTypeNoCV::StaticStruct();
+			Struct->ImportText(*Data, &Ans, nullptr, 0, nullptr, Struct->GetName());
+			return Ans;
+		}
 #pragma push_macro("GENERIC_PROPERTY")
-#pragma push_macro("GENERIC_PROPERTY_BOOL")
-#pragma push_macro("GENERIC_PROPERTY_FLOAT")
 #pragma push_macro("GENERIC_PROPERTY_OBJECT")
-#pragma push_macro("GENERIC_PROPERTY_CLASS")
-#define GENERIC_PROPERTY(CppType, Name) \
-	template<> FORCEINLINE CppType As<CppType>() const \
-	{ \
-		CppType Ans; \
-		Get(&Ans, GET_GENERIC_PROP_PRIVATE(CppType)); \
-		return Ans; \
-	} \
-	FORCEINLINE operator CppType () const \
-	{ \
-		return As<CppType>(); \
-	} 
-	// END DEFINE GENERIC_PROPERTY
-#define GENERIC_PROPERTY_BOOL(CppType, Name)
-#define GENERIC_PROPERTY_FLOAT(CppType, Name)
+#define GENERIC_PROPERTY(InType, Name) \
+		else if constexpr (std::is_same_v<CppTypeNoCV, InType>) \
+		{ \
+			InType Ans; \
+			Get(&Ans, GET_GENERIC_PROP_PRIVATE(InType)); \
+			return Ans; \
+		}
+		// END DEFINE GENERIC_PROPERTY
 #define GENERIC_PROPERTY_OBJECT(CppType, Name)
-#define GENERIC_PROPERTY_CLASS(CppType, Name)
 #include "GenericProperties.inl"
 #pragma pop_macro("GENERIC_PROPERTY")
-#pragma pop_macro("GENERIC_PROPERTY_BOOL")
-#pragma pop_macro("GENERIC_PROPERTY_FLOAT")
 #pragma pop_macro("GENERIC_PROPERTY_OBJECT")
-#pragma pop_macro("GENERIC_PROPERTY_CLASS")
-
-	 // UScriptStruct constructors and converters
-
-	/** Construct from any UScriptStruct-based type */
-	template<class CppType, typename TEnableIf<TIsPointer<decltype(CppType::StaticStruct())>::Value>::Type* = nullptr>
-	FGeneric(const CppType& Other)
-	{
-		Clear();
-		UScriptStruct* Struct = CppType::StaticStruct();
-		Struct->ExportText(Data, &Other, nullptr, nullptr, 0, nullptr);
-#if WITH_EDITOR
-		CacheReferencedObjects(Struct, &Other);
-#endif
-#if WITH_EDITORONLY_DATA
-		EditPinType.PinCategory = "struct";
-		EditPinType.PinSubCategoryObject = Struct;
-#endif
+		else
+		{
+			static_assert(!std::is_same_v<CppTypeNoCV, CppTypeNoCV>,
+				"CppType must have blueprint reflection support to be used with FGeneric");
+			return CppTypeNoCV();
+		}
 	}
 
-	/** Assign from any UScriptStruct-based type */
-	template<class CppType, typename TEnableIf<TIsPointer<decltype(CppType::StaticStruct())>::Value>::Type* = nullptr>
-	FORCEINLINE FGeneric& operator=(const CppType& Other)
+	template<typename Type> FORCEINLINE operator const Type() const
 	{
-		(*this) = Other;
-		return *this;
+		return As<Type>();
 	}
 
-	/** Convert to any UScriptStruct-based type */
-	template<class CppType, typename TEnableIf<TIsPointer<decltype(CppType::StaticStruct())>::Value>::Type* = nullptr>
-	FORCEINLINE CppType As() const
-	{
-		CppType Ans;
-		UScriptStruct* Struct = CppType::StaticStruct();
-		Struct->ImportText(*Data, &Ans, nullptr, 0, nullptr, Struct->GetName());
-		return Ans;
-	}
-
-	/** Implicit conversion to any UScriptStruct-based type */
-	template<class CppType, typename TEnableIf<TIsPointer<decltype(CppType::StaticStruct())>::Value>::Type* = nullptr>
-	FORCEINLINE operator CppType() const
-	{
-		return As<CppType, nullptr>();
-	}
 #endif // CPP
 };
 
