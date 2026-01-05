@@ -328,6 +328,9 @@ public:
 	/** Inequality comparison operator */
 	FORCEINLINE bool operator!= (const FGeneric& Other) const { return !(*this == Other); }
 
+	/** Compute hash value for this instance */
+	friend uint32 GetTypeHash(const FGeneric& Generic) { return GetTypeHash(Generic.GetStringData()) ^ FCrc::MemCrc32(Generic.GetPlainData(), Generic.GetPlainSize()); }
+
 #if WITH_EDITORONLY_DATA
 	/** Check if the pin type is valid */
 	FORCEINLINE bool IsValidPinType() const { return EditPinType != FEdGraphPinType(); };
