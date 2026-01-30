@@ -40,9 +40,6 @@ struct FGenericPropJunkPrivate
 {
 	GENERATED_BODY()
 
-private:
-	friend struct FGeneric;
-	template<class> friend struct UScriptStruct::TCppStructOps;
 	FGenericPropJunkPrivate() { FMemory::Memzero(*this); }
 
 	// Primary data types
