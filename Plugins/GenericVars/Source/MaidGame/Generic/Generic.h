@@ -42,6 +42,7 @@ struct FGenericPropJunkPrivate
 
 	FGenericPropJunkPrivate() { FMemory::Memzero(*this); }
 
+private:
 	// Primary data types
 	UPROPERTY() bool Bool;
 	UPROPERTY() float Float;
@@ -79,6 +80,8 @@ struct FGenericPropJunkPrivate
 	UPROPERTY() FBox2D Box2D;
 	UPROPERTY() FDateTime DateTime;
 	UPROPERTY() FTimespan Timespan;
+	UPROPERTY() FSoftObjectPath SoftObjectPath;
+	UPROPERTY() FSoftClassPath SoftClassPath;
 
 	template<typename T> struct FUncommentCheck { static uint8 Func(); };
 	/**
@@ -402,14 +405,14 @@ public:
 	}
 
 	/** Construct from any UScriptStruct-based type */
-	template<class CppType, typename std::enable_if_t<TIsUStruct<CppType>>* = nullptr>
+	template<class CppType, typename std::enable_if_t<Maid::TIsUStruct<CppType>>* = nullptr>
 	explicit FGeneric(const CppType& Other)
 	{
 		(*this) = Other;
 	}
 
 	/** Assign from any UScriptStruct-based type */
-	template<class CppType, typename std::enable_if_t<TIsUStruct<CppType>>* = nullptr>
+	template<class CppType, typename std::enable_if_t<Maid::TIsUStruct<CppType>>* = nullptr>
 	FORCEINLINE FGeneric& operator=(const CppType& Other)
 	{
 		Clear();
@@ -426,14 +429,14 @@ public:
 	}
 
 	/** Construct from UEnum type */
-	template<class CppType, typename std::enable_if_t<TIsUEnum<CppType>>* = nullptr>
+	template<class CppType, typename std::enable_if_t<Maid::TIsUEnum<CppType>>* = nullptr>
 	explicit FGeneric(const CppType& Other)
 	{
 		(*this) = Other;
 	}
 
 	/** Assign from UEnum type */
-	template<class CppType, typename std::enable_if_t<TIsUEnum<CppType>>* = nullptr>
+	template<class CppType, typename std::enable_if_t<Maid::TIsUEnum<CppType>>* = nullptr>
 	FORCEINLINE FGeneric& operator=(const CppType& Other)
 	{
 		(*this) = (__underlying_type(CppType))Other;
@@ -441,14 +444,14 @@ public:
 	}
 
 	/** Construct from TEnumAsByte of UEnum type */
-	template<class CppType, typename std::enable_if_t<TIsUEnum<CppType>>* = nullptr>
+	template<class CppType, typename std::enable_if_t<Maid::TIsUEnum<CppType>>* = nullptr>
 	explicit FGeneric(const TEnumAsByte<CppType>& Other)
 	{
 		(*this) = Other;
 	}
 
 	/** Assign from TEnumAsByte of UEnum type */
-	template<class CppType, typename std::enable_if_t<TIsUEnum<CppType>>* = nullptr>
+	template<class CppType, typename std::enable_if_t<Maid::TIsUEnum<CppType>>* = nullptr>
 	FORCEINLINE FGeneric& operator=(const TEnumAsByte<CppType>& Other)
 	{
 		(*this) = (__underlying_type(CppType))Other;
@@ -525,9 +528,9 @@ public:
 					return FCString::Atod(*Data);
 			return static_cast<CppTypeNoCV>(0);
 		}
-		else if constexpr (TIsIntegral<CppTypeNoCV>::Value || TIsUEnum<CppTypeNoCV>)
+		else if constexpr (TIsIntegral<CppTypeNoCV>::Value || Maid::TIsUEnum<CppTypeNoCV>)
 		{
-			using TDestType = typename std::conditional_t<TIsUEnum<CppTypeNoCV>, TUnderlyingType<CppTypeNoCV>, CppTypeNoCV>;
+			using TDestType = typename std::conditional_t<Maid::TIsUEnum<CppTypeNoCV>, Maid::TUnderlyingType<CppTypeNoCV>, CppTypeNoCV>;
 			if (GetPlainSize() == 0)
 				if (Data.IsEmpty())
 					return static_cast<CppTypeNoCV>(TDestType(0));
@@ -551,7 +554,14 @@ public:
 		}
 		else if constexpr (std::is_pointer_v<CppTypeNoCV> && std::is_convertible_v<CppTypeNoCV, UObject*>)
 		{
-			return Cast<std::remove_pointer_t<CppTypeNoCV>>(As<TSoftObjectPtr<>>().LoadSynchronous());
+			// Fix: SoftObjectPath.TryLoad() returns nullptr for UPackage in UE5.7+.
+			// See TestGeneric.cpp Test 27: Object Reference Performance and Edge Cases
+#if UE_VERSION_NEWER_THAN(5, 7, 0)
+			if constexpr (std::is_convertible_v<UPackage*, CppTypeNoCV>)
+				if (!Data.Contains(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+					return Data.StartsWith(TEXT("/"), ESearchCase::CaseSensitive) ? LoadPackage(nullptr, *Data, ELoadFlags::LOAD_NoWarn) : nullptr;
+#endif
+			return Cast<std::remove_pointer_t<CppTypeNoCV>>(As<FSoftObjectPath>().TryLoad());
 		}
 		else if constexpr (std::is_pointer_v<CppTypeNoCV>)
 		{
@@ -559,15 +569,15 @@ public:
 				"Only UObject pointer types with blueprint reflection are supported by FGeneric");
 			return nullptr;
 		}
-		else if constexpr (TIsSubclassOf<CppTypeNoCV>)
+		else if constexpr (Maid::TIsSubclassOf<CppTypeNoCV>)
 		{
-			return Cast<UClass>(As<TSoftObjectPtr<>>().LoadSynchronous());
+			return As<FSoftClassPath>().TryLoadClass<typename Maid::TSubclassOfType<CppTypeNoCV>>();
 		}
 		else if constexpr (std::is_same_v<CppTypeNoCV, FSoftObjectPath> || std::is_same_v<CppTypeNoCV, FSoftClassPath>)
 		{
-			return As<TSoftObjectPtr<>>();
+			return CppTypeNoCV(Data);
 		}
-		else if constexpr (TIsUStruct<CppTypeNoCV>)
+		else if constexpr (Maid::TIsUStruct<CppTypeNoCV>)
 		{
 			CppTypeNoCV Ans;
 			UScriptStruct* Struct = CppTypeNoCV::StaticStruct();

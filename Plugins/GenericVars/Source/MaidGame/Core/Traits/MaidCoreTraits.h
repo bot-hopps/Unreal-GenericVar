@@ -11,6 +11,15 @@ namespace MaidTraits_Private
 	{
 		template<typename T> constexpr bool TIsSubclassOf = false;
 		template<typename T> constexpr bool TIsSubclassOf<TSubclassOf<T>> = true;
+
+		template<typename T, typename = void>
+		struct TSubclassOfType { using Type = T; };
+
+		template<typename T>
+		struct TSubclassOfType<TSubclassOf<T>, std::enable_if_t<TIsSubclassOf<TSubclassOf<T>>>>
+		{
+			using Type = T;
+		};
 	}
 	namespace Struct
 	{
@@ -79,23 +88,29 @@ namespace MaidTraits_Private
 	}
 }
 
-template<typename T> 
-constexpr bool TIsSubclassOf = MaidTraits_Private::SubclassOf::TIsSubclassOf<T>;
+namespace Maid
+{
+	template<typename T>
+	constexpr bool TIsSubclassOf = MaidTraits_Private::SubclassOf::TIsSubclassOf<T>;
 
-template<typename T>
-constexpr bool TIsUStruct = MaidTraits_Private::Struct::THasStaticStruct<T>::value;
+	template<typename T>
+	using TSubclassOfType = typename MaidTraits_Private::SubclassOf::TSubclassOfType<T>::Type;
 
-template<typename T>
-constexpr bool TIsEnumAsByte = MaidTraits_Private::Enum::TIsEnumAsByte<T>;
+	template<typename T>
+	constexpr bool TIsUStruct = MaidTraits_Private::Struct::THasStaticStruct<T>::value;
 
-template<typename T>
-using TUnderlyingEnum = typename MaidTraits_Private::Enum::TUnderlyingEnum<T>::Type;
+	template<typename T>
+	constexpr bool TIsEnumAsByte = MaidTraits_Private::Enum::TIsEnumAsByte<T>;
 
-template<typename T>
-using TUnderlyingType = typename MaidTraits_Private::Enum::TUnderlyingType<T>::Type;
+	template<typename T>
+	using TUnderlyingEnum = typename MaidTraits_Private::Enum::TUnderlyingEnum<T>::Type;
 
-template<typename T>
-constexpr bool THasStaticEnum = MaidTraits_Private::Enum::THasStaticEnum<T>::value;
+	template<typename T>
+	using TUnderlyingType = typename MaidTraits_Private::Enum::TUnderlyingType<T>::Type;
 
-template<typename T>
-constexpr bool TIsUEnum = MaidTraits_Private::Enum::TIsUEnum<T>::value;
+	template<typename T>
+	constexpr bool THasStaticEnum = MaidTraits_Private::Enum::THasStaticEnum<T>::value;
+
+	template<typename T>
+	constexpr bool TIsUEnum = MaidTraits_Private::Enum::TIsUEnum<T>::value;
+}
