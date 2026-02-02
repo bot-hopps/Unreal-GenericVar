@@ -560,8 +560,10 @@ public:
 			if constexpr (std::is_convertible_v<UPackage*, CppTypeNoCV>)
 				if (!Data.Contains(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd))
 					return Data.StartsWith(TEXT("/"), ESearchCase::CaseSensitive) ? LoadPackage(nullptr, *Data, ELoadFlags::LOAD_NoWarn) : nullptr;
-#endif
 			return Cast<std::remove_pointer_t<CppTypeNoCV>>(As<FSoftObjectPath>().TryLoad());
+#else
+			return Cast<std::remove_pointer_t<CppTypeNoCV>>(TSoftObjectPtr<>(As<FSoftObjectPath>()).LoadSynchronous());
+#endif
 		}
 		else if constexpr (std::is_pointer_v<CppTypeNoCV>)
 		{
