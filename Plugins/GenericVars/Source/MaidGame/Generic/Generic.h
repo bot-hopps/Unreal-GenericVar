@@ -16,6 +16,11 @@
 
 #pragma warning(disable: 4499)
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdangling-else"
+#endif
+
 #ifndef GENERIC_USING_CACHE
 #define GENERIC_USING_CACHE 1
 #endif
@@ -641,4 +646,8 @@ struct TStructOpsTypeTraits<FGeneric> : public TStructOpsTypeTraitsBase2<FGeneri
 /** Big-endian platform warning */
 #if !PLATFORM_LITTLE_ENDIAN
 #pragma message("CAUTION: This code assumes Little-Endian. Audit serialization logic for Big-Endian compatibility.")
+#endif
+
+#ifdef __clang__
+#pragma clang diagnostic pop
 #endif
