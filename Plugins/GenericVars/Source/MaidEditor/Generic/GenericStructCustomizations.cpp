@@ -52,7 +52,7 @@ TSharedRef<IPropertyTypeCustomization> FGenericStructCustomization::MakeInstance
 	if (auto* TransBuffer = Cast<UTransBuffer>(GEditor ? GEditor->Trans : nullptr))
 	{
 		Instance->UndoHandle = TransBuffer->OnUndo().AddLambda([WeakInst = TWeakPtr<FGenericStructCustomization>(Instance)]
-			(const FTransactionContext& TransactionContext, bool Succeeded)
+		(const FTransactionContext& TransactionContext, bool Succeeded)
 			{
 				if (Succeeded)
 				{
@@ -94,7 +94,7 @@ void FGenericStructCustomization::CustomizeStructHeader(TSharedRef<IPropertyHand
 				.ToolTip(VarTypeTooltip)
 				.Font(DetailFontInfo)
 		]
-		.ValueContent()
+	.ValueContent()
 		.MaxDesiredWidth(980.f)
 		[
 			SNew(SPinTypeSelector, FGetPinTypeTree::CreateUObject(K2Schema, &UEdGraphSchema_K2::GetVariableTypeTree))
@@ -106,7 +106,7 @@ void FGenericStructCustomization::CustomizeStructHeader(TSharedRef<IPropertyHand
 				.bAllowArrays(true)
 				.Font(DetailFontInfo)
 		]
-		;
+	;
 }
 
 void FGenericStructCustomization::CustomizeStructChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IStructCustomizationUtils& StructCustomizationUtils)
@@ -274,6 +274,23 @@ void FGenericStructCustomization::CreateChildrenInternal(IDetailChildrenBuilder&
 	if (EditorStruct && ensure(EditProperty))
 	{
 		ensureAlways(StructLayout.Num() == 1);
+
+		// If empty, the type was likely just set - initialize content now.
+		if (RawData.ContainsByPredicate([](void* GenericPtr) { return reinterpret_cast<FGeneric*>(GenericPtr)->IsEmpty(); }))
+		{
+			FStructOnScope EmptyValue(EditorStruct);
+
+			for (auto* GenericPtr : RawData)
+			{
+				FGeneric& Generic = *reinterpret_cast<FGeneric*>(GenericPtr);
+				if (Generic.IsEmpty())
+				{
+					Generic.Set(EmptyValue.GetStructMemory(), EditProperty);
+				}
+			}
+			
+			ModifyEditingObjects(StructPropertyHandle.Get());
+		}
 
 		TSharedRef<FStructOnScope> StructOnScope = MakeShareable<FStructOnScope>(
 			new FStructOnScope(EditorStruct)
