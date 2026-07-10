@@ -87,7 +87,7 @@ void FGeneric::Get(void* DestPropertyAddress, const FProperty* DestProperty) con
 		DestProperty->ClearValue(DestPropertyAddress);
 		if (!Data.IsEmpty())
 		{
-#if UE_VERSION_NEWER_THAN(5, 1, 0)
+#if UE_5_1_OR_NEWER
 			DestProperty->ImportText_Direct(*Data, DestPropertyAddress, nullptr, PPF_None, nullptr);
 #else
 			DestProperty->ImportText(*Data, DestPropertyAddress, PPF_None, nullptr, nullptr);
@@ -155,7 +155,7 @@ const bool FGeneric::IsPlain(const FProperty* Prop)
 
 	static const TSet<const UScriptStruct*> PlainStructs = 
 	{
-#if UE_VERSION_NEWER_THAN(5, 0, 0)
+#if UE_5_0_OR_NEWER
 		StaticGetBaseStructureInternal(TEXT("CoreUObject"), TEXT("Vector2f")),
 		StaticGetBaseStructureInternal(TEXT("CoreUObject"), TEXT("Vector3f")),
 		StaticGetBaseStructureInternal(TEXT("CoreUObject"), TEXT("Vector4f")),

@@ -72,13 +72,17 @@ CppType UGenericStatics::GenericTo##TypeName(FGeneric Variable)			\
 {																		\
 	return (CppType)Variable;											\
 }
-GENERIC_DEF_HELPER(float, Float, FFloatProperty)
-GENERIC_DEF_HELPER(int32, Int, FIntProperty)
-GENERIC_DEF_HELPER(int64, Int64, FInt64Property)
 GENERIC_DEF_HELPER(bool, Bool, FBoolProperty)
 GENERIC_DEF_HELPER(uint8, Byte, FByteProperty)
-GENERIC_DEF_HELPER(FString, String, FStrProperty)
+GENERIC_DEF_HELPER(int32, Int, FIntProperty)
+GENERIC_DEF_HELPER(int64, Int64, FInt64Property)
+GENERIC_DEF_HELPER(float, Float, FFloatProperty)
 GENERIC_DEF_HELPER(FName, Name, FNameProperty)
+GENERIC_DEF_HELPER(FString, String, FStrProperty)
+GENERIC_DEF_HELPER(FText, Text, FTextProperty)
+GENERIC_DEF_HELPER(FVector, Vector, FStructProperty)
+GENERIC_DEF_HELPER(FRotator, Rotator, FStructProperty)
+GENERIC_DEF_HELPER(FTransform, Transform, FStructProperty)
 GENERIC_DEF_HELPER(UObject*, ObjectRef, FObjectProperty)
 GENERIC_DEF_HELPER(TSubclassOf<UObject>, ClassRef, FObjectProperty)
 #pragma pop_macro("GENERIC_DEF_HELPER")

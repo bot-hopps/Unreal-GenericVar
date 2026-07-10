@@ -3,23 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/MaidMacro.h"
 #include "Core/Traits/MaidCoreTraits.h"
 #include "Misc/EngineVersionComparison.h"
 
-#if UE_VERSION_NEWER_THAN(5, 5, 0)
+#if UE_5_5_OR_NEWER
 #include "StructUtils/UserDefinedStruct.h"
 #else
 #include "Engine/UserDefinedStruct.h"
 #endif
 
 #include "Generic.generated.h"
-
-#pragma warning(disable: 4499)
-
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdangling-else"
-#endif
 
 #ifndef GENERIC_USING_CACHE
 #define GENERIC_USING_CACHE 1
@@ -45,7 +39,21 @@ struct FGenericPropJunkPrivate
 {
 	GENERATED_BODY()
 
-	FGenericPropJunkPrivate() { FMemory::Memzero(*this); }
+#if CPP
+	FGenericPropJunkPrivate()
+	{
+#pragma push_macro("GENERIC_PROPERTY")
+#define GENERIC_PROPERTY(CppType, Name) InitProp(Name);
+#include "GenericProperties.inl"
+#pragma pop_macro("GENERIC_PROPERTY")
+	}
+#endif
+
+private:
+	template<typename T, typename = void>
+	std::enable_if_t<!Maid::TIsForceInitConstructible<T>, void> InitProp(T& Prop) { Prop = T(); }
+	template<typename T>
+	std::enable_if_t<Maid::TIsForceInitConstructible<T>, void> InitProp(T& Prop) { Prop = T(ForceInit); }
 
 private:
 	// Primary data types
@@ -62,6 +70,7 @@ private:
 	UPROPERTY() uint64 UInt64;
 	UPROPERTY() FName Name;
 	UPROPERTY() FString String;
+	UPROPERTY() FText Text;
 	UPROPERTY() UObject* Object;
 	UPROPERTY() TSubclassOf<UObject> Class;
 	UPROPERTY() TSoftObjectPtr<UObject> SoftObject;
@@ -90,7 +99,7 @@ private:
 
 	template<typename T> struct FUncommentCheck { static uint8 Func(); };
 	/**
-	 * Uncomment the following code if UE_VERSION_NEWER_THAN(5, 0, 0)
+	 * Uncomment the following code if UE_5_0_OR_NEWER
 	 */
 	//UPROPERTY() FVector2f Vector2f;
 	//UPROPERTY() FVector3f Vector3f;
@@ -99,7 +108,7 @@ private:
 	//UPROPERTY() FBox3f Box3f;
 	//UPROPERTY() FBox2f Box2f;
 	//template<> struct FUncommentCheck<FGenericPropJunkPrivate> { static uint16 Func(); };
-#if UE_VERSION_NEWER_THAN(5, 0, 0)
+#if UE_5_0_OR_NEWER
 	static_assert(sizeof(FUncommentCheck<FGenericPropJunkPrivate>::Func()) - 1,
 		"Uncomment the above lines for UE5.0+ compatibility");
 #endif
@@ -526,6 +535,8 @@ public:
 				return static_cast<CppTypeNoCV>(*reinterpret_cast<const double*>(GetPlainData()));
 			else if (GetPlainSize() == sizeof(long double))
 				return static_cast<CppTypeNoCV>(*reinterpret_cast<const long double*>(GetPlainData()));
+			else if (GetPlainSize() == sizeof(uint8))
+				return static_cast<CppTypeNoCV>(*reinterpret_cast<const uint8*>(GetPlainData()));
 			else if (!Data.IsEmpty())
 				if constexpr (std::is_same_v<CppTypeNoCV, float>)
 					return FCString::Atof(*Data);
@@ -561,7 +572,7 @@ public:
 		{
 			// Fix: SoftObjectPath.TryLoad() returns nullptr for UPackage in UE5.7+.
 			// See TestGeneric.cpp Test 27: Object Reference Performance and Edge Cases
-#if UE_VERSION_NEWER_THAN(5, 7, 0)
+#if UE_5_7_OR_NEWER
 			if constexpr (std::is_convertible_v<UPackage*, CppTypeNoCV>)
 				if (!Data.Contains(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd))
 					return Data.StartsWith(TEXT("/"), ESearchCase::CaseSensitive) ? LoadPackage(nullptr, *Data, ELoadFlags::LOAD_NoWarn) : nullptr;
@@ -646,8 +657,4 @@ struct TStructOpsTypeTraits<FGeneric> : public TStructOpsTypeTraitsBase2<FGeneri
 /** Big-endian platform warning */
 #if !PLATFORM_LITTLE_ENDIAN
 #pragma message("CAUTION: This code assumes Little-Endian. Audit serialization logic for Big-Endian compatibility.")
-#endif
-
-#ifdef __clang__
-#pragma clang diagnostic pop
 #endif

@@ -30,6 +30,13 @@ namespace MaidTraits_Private
 		struct THasStaticStruct<T, std::void_t<decltype(&T::StaticStruct)>>
 			: std::is_convertible<decltype(T::StaticStruct()), UScriptStruct*> {
 		};
+
+		template<typename T, typename = void>
+		struct TIsForceInitConstructible : std::false_type {};
+
+		template<typename T>
+		struct TIsForceInitConstructible <T,
+			std::void_t<decltype(T(EForceInit::ForceInit))>> : std::true_type {};
 	}
 	namespace Enum
 	{
@@ -49,8 +56,8 @@ namespace MaidTraits_Private
 		};
 
 		template<typename T, int> struct TUnderlyingTypeImpl { using Type = void; };
-		template<typename T> struct TUnderlyingTypeImpl<T, 0> { using Type = __underlying_type(typename TUnderlyingEnum<T>::Type); };
-		template<typename T> struct TUnderlyingTypeImpl<T, 1> { using Type = __underlying_type(T); };
+		template<typename T> struct TUnderlyingTypeImpl<T, 0> { using Type = std::underlying_type_t<typename TUnderlyingEnum<T>::Type>; };
+		template<typename T> struct TUnderlyingTypeImpl<T, 1> { using Type = std::underlying_type_t<T>; };
 
 		template<typename T, typename = void> struct TUnderlyingType { using Type = void; };
 		template<typename T> struct TUnderlyingType<T, std::void_t<decltype(sizeof(T))>>
@@ -98,6 +105,9 @@ namespace Maid
 
 	template<typename T>
 	constexpr bool TIsUStruct = MaidTraits_Private::Struct::THasStaticStruct<T>::value;
+
+	template<typename T>
+	constexpr bool TIsForceInitConstructible = MaidTraits_Private::Struct::TIsForceInitConstructible<T>::value;
 
 	template<typename T>
 	constexpr bool TIsEnumAsByte = MaidTraits_Private::Enum::TIsEnumAsByte<T>;

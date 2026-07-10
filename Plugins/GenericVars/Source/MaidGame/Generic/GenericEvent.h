@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Core/MaidCoreFwd.h"
+#include "Core/MaidCore.h"
 #include "Generic/Generic.h"
 
 #include "GenericEvent.Generated.h"

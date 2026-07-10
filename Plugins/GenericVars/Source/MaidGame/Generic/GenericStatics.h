@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Core/MaidCoreFwd.h"
+#include "Core/MaidCore.h"
 #include "Generic/Generic.h"
 
 #include "GenericStatics.generated.h"
@@ -110,12 +110,19 @@ public:
     // Auto-cast Conversions
     // ========================
 
-    /** Float type conversions with Blueprint auto-cast support */
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Float)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
-    static FGeneric FloatToGeneric(float Value);
+    // Boolean conversions
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Bool)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FGeneric BoolToGeneric(bool Value);
 
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToFloat (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
-    static float GenericToFloat(FGeneric Variable);
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToBool (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static bool GenericToBool(FGeneric Variable);
+
+    // Byte conversions
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Byte)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FGeneric ByteToGeneric(uint8 Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToByte (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static uint8 GenericToByte(FGeneric Variable);
 
     // Integer type conversions
     UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Int)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
@@ -131,19 +138,19 @@ public:
     UFUNCTION(BlueprintPure, meta = (DisplayName = "ToInt64 (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
     static int64 GenericToInt64(FGeneric Variable);
 
-    // Boolean conversions
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Bool)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
-    static FGeneric BoolToGeneric(bool Value);
+    // Float conversions
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Float)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FGeneric FloatToGeneric(float Value);
 
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToBool (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
-    static bool GenericToBool(FGeneric Variable);
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToFloat (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static float GenericToFloat(FGeneric Variable);
 
-    // Byte conversions
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Byte)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
-    static FGeneric ByteToGeneric(uint8 Value);
+    // Name conversions
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Name)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FGeneric NameToGeneric(FName Value);
 
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToByte (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
-    static uint8 GenericToByte(FGeneric Variable);
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToName (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FName GenericToName(FGeneric Variable);
 
     // String conversions
     UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (String)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
@@ -152,12 +159,33 @@ public:
     UFUNCTION(BlueprintPure, meta = (DisplayName = "ToString (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
     static FString GenericToString(FGeneric Variable);
 
-    // Name conversions
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Name)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
-    static FGeneric NameToGeneric(FName Value);
+    // Text conversions
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Text)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FGeneric TextToGeneric(FText Value);
 
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToName (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
-    static FName GenericToName(FGeneric Variable);
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToText (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FText GenericToText(FGeneric Variable);
+
+    // Vector conversions
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Vector)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FGeneric VectorToGeneric(FVector Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToVector (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FVector GenericToVector(FGeneric Variable);
+
+    // Rotator conversions
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Rotator)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FGeneric RotatorToGeneric(FRotator Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToRotator (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FRotator GenericToRotator(FGeneric Variable);
+
+    // Transform conversions
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (Transform)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FGeneric TransformToGeneric(FTransform Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "ToTransform (Generic)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
+    static FTransform GenericToTransform(FGeneric Variable);
 
     // Object reference conversions
     UFUNCTION(BlueprintPure, meta = (DisplayName = "ToGeneric (ObjectReference)", KeyWords = "cast convert", CompactNodeTitle = "->", BlueprintAutocast), Category = "Generic")
